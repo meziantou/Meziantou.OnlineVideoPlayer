@@ -1,0 +1,8 @@
+@page "/"
+
+<link href="app.css" rel="stylesheet" />
+<div id="video_player"></div>
+<script type="module">
+    import { VideoPlayer } from './video-player.js';
+    const videoPlayer = new VideoPlayer(document.getElementById('video_player'));
+</script>

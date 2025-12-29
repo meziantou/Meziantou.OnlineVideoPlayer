@@ -1,0 +1,99 @@
+:root {
+    --controls-size: 20px;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: black;
+}
+
+.video_player {
+    width: 100%;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 1fr var(--controls-size);
+    align-items: center;
+    justify-items: stretch;
+}
+
+    .video_player video {
+        max-height: calc(100vh - var(--controls-size));
+        max-width: 100%;
+    }
+
+    .video_player .controls {
+        height: var(--controls-size);
+        width: 100%;
+        color: white;
+        display: flex;
+        align-items: center;
+    }
+
+        .video_player .controls span {
+            margin-left: 5px;
+            margin-right: 5px;
+            font-family: monospace;
+        }
+
+    .video_player progress {
+        flex-grow: 1;
+        cursor: pointer;
+        height: 100%;
+    }
+
+    .video_player .trackname {
+        color: white;
+        font-size: 2.2rem;
+        z-index: 1;
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        max-width: calc(100vw - 30px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        /* Enhanced frozen glass effect */
+        background: rgba(0, 0, 0, 0.3);
+        padding: 5px 10px;
+        border-radius: 12px;
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8), -1px -1px 2px rgba(0, 0, 0, 0.5);
+    }
+
+    .video_player .timer {
+        color: white;
+        font-size: 1.4rem;
+        z-index: 1;
+        position: absolute;
+        top: 65px;
+        left: 15px;
+        max-width: calc(100vw - 30px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        /* Enhanced frozen glass effect */
+        background: rgba(0, 0, 0, 0.3);
+        padding: 4px 8px;
+        border-radius: 8px;
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8), -1px -1px 2px rgba(0, 0, 0, 0.5);
+    }
+
+    .video_player.mouse-idle {
+        cursor: none;
+    }
+
+        .video_player.mouse-idle .trackname {
+            display: none;
+        }
+
+        .video_player.mouse-idle .timer {
+            display: none;
+        }

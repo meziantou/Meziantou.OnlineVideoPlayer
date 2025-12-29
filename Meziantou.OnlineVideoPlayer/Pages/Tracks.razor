@@ -1,0 +1,18 @@
+@page "/tracks"
+
+<div id="track-list"></div>
+<script type="module">
+    import { TrackList } from './tracks.js';
+    const tracklist = new TrackList(document.getElementById('track-list'));
+</script>
+<style>
+    a {
+        color: grey;
+        font-size: 18px;
+        line-height: 1.5;
+    }
+
+        a:visited {
+            color: grey;
+        }
+</style>
