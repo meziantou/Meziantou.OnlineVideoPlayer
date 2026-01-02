@@ -5,6 +5,7 @@ export interface VideoPlayerState {
     randomPlaylistQueueIndexes: number[] | undefined;
     showRemainingTime: boolean | undefined;
     currentTime: number | undefined;
+    volume: number | undefined;
 }
 
 export function persistPlayerState(state: VideoPlayerState) {

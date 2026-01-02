@@ -8,6 +8,12 @@ export class VideoPlayer {
     private totalTimeElement: HTMLElement;
     private trackNameElement: HTMLElement;
     private timerElement: HTMLElement;
+    private volumeElement: HTMLElement;
+
+    private audioContext: AudioContext | null = null;
+    private gainNode: GainNode | null = null;
+    private sourceNode: MediaElementAudioSourceNode | null = null;
+    private currentVolume: number = 1.0;
 
     private playlist: string[] = [];
     private currentTrackIndex: number = -1;
@@ -36,6 +42,9 @@ export class VideoPlayer {
 
         rootElement.classList.add("video_player");
 
+        // Initialize Web Audio API for volume amplification
+        this.initAudioContext();
+
         this.trackNameElement = document.createElement("span");
         this.trackNameElement.classList.add("trackname");
         this.rootElement.appendChild(this.trackNameElement);
@@ -43,6 +52,10 @@ export class VideoPlayer {
         this.timerElement = document.createElement("span");
         this.timerElement.classList.add("timer");
         this.rootElement.appendChild(this.timerElement);
+
+        this.volumeElement = document.createElement("span");
+        this.volumeElement.classList.add("volume");
+        this.rootElement.appendChild(this.volumeElement);
 
         const controls = document.createElement("div");
         controls.classList.add("controls");
@@ -88,15 +101,73 @@ export class VideoPlayer {
             this.pendingAutoPlay = true;
         } else {
             // Tab is visible, start playing immediately
-            this.videoElement.play().catch(e => {
-                console.error("Failed to start autoplay:", e);
-            });
+            // Resume AudioContext if suspended
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                this.audioContext.resume().then(() => {
+                    this.videoElement.play().catch(e => {
+                        console.error("Failed to start autoplay:", e);
+                    });
+                });
+            } else {
+                this.videoElement.play().catch(e => {
+                    console.error("Failed to start autoplay:", e);
+                });
+            }
         }
     }
 
     private displayTrackname() {
         this.updateTrackNameDisplay();
         this.updateTimerDisplay();
+    }
+
+    private initAudioContext() {
+        try {
+            this.audioContext = new AudioContext();
+            this.sourceNode = this.audioContext.createMediaElementSource(this.videoElement);
+            this.gainNode = this.audioContext.createGain();
+            
+            this.sourceNode.connect(this.gainNode);
+            this.gainNode.connect(this.audioContext.destination);
+            
+            // Set initial volume
+            this.gainNode.gain.value = this.currentVolume;
+        } catch (error) {
+            console.error("Failed to initialize Web Audio API:", error);
+            // Fall back to regular video volume control
+        }
+    }
+
+    private setVolume(volume: number) {
+        // Clamp volume between 0 and 2 (0% to 200%)
+        volume = Math.max(0, Math.min(2, volume));
+        this.currentVolume = volume;
+        
+        if (this.gainNode) {
+            this.gainNode.gain.value = volume;
+        } else {
+            // Fallback to video element volume (capped at 1)
+            this.videoElement.volume = Math.min(1, volume);
+        }
+        
+        this.showVolumeIndicator();
+        this.persistState();
+    }
+
+    private adjustVolume(delta: number) {
+        const newVolume = this.currentVolume + delta;
+        this.setVolume(newVolume);
+    }
+
+    private showVolumeIndicator() {
+        const volumePercent = Math.round(this.currentVolume * 100);
+        this.volumeElement.textContent = `🔊 ${volumePercent}%`;
+        this.volumeElement.classList.add("visible");
+        
+        // Hide after 2 seconds
+        setTimeout(() => {
+            this.volumeElement.classList.remove("visible");
+        }, 2000);
     }
 
     private updateTrackNameDisplay() {
@@ -141,6 +212,13 @@ export class VideoPlayer {
 
         this.rootElement.addEventListener("mousemove", () => this.displayCursor());
         this.rootElement.addEventListener("click", () => this.displayCursor());
+
+        // Mouse wheel for volume control
+        this.rootElement.addEventListener("wheel", (event) => {
+            event.preventDefault();
+            const delta = event.deltaY > 0 ? -0.05 : 0.05; // Scroll down = quieter, scroll up = louder
+            this.adjustVolume(delta);
+        }, { passive: false });
 
         this.videoElement.addEventListener("ended", () => {
             this.nextTrack();
@@ -266,6 +344,17 @@ export class VideoPlayer {
                 document.location.href = "/tracks";
             } else if (event.key === "b") {
                 document.location.href = "/tracks";
+            } else if (event.key === "ArrowUp") {
+                this.adjustVolume(0.05); // Increase by 5%
+            } else if (event.key === "ArrowDown") {
+                this.adjustVolume(-0.05); // Decrease by 5%
+            } else if (event.key === "m") {
+                // Toggle mute
+                if (this.currentVolume > 0) {
+                    this.setVolume(0);
+                } else {
+                    this.setVolume(1);
+                }
             } else {
                 handled = false;
             }
@@ -314,6 +403,10 @@ export class VideoPlayer {
 
     playPause() {
         if (this.videoElement.paused || this.videoElement.ended) {
+            // Resume AudioContext if suspended (required by browser autoplay policies)
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
             this.videoElement.play();
         } else {
             this.videoElement.pause();
@@ -456,7 +549,8 @@ export class VideoPlayer {
             randomPlaylistHistoryIndexes: this.randomPlaylistHistoryIndexes,
             randomPlaylistQueueIndexes: this.randomPlaylistQueueIndexes,
             showRemainingTime: this.displayRemainingTime,
-            currentTime: this.videoElement.currentTime
+            currentTime: this.videoElement.currentTime,
+            volume: this.currentVolume
         });
     }
 
@@ -485,6 +579,10 @@ export class VideoPlayer {
 
             if (typeof state.currentTime === "number") {
                 this.videoElement.currentTime = state.currentTime;
+            }
+
+            if (typeof state.volume === "number") {
+                this.setVolume(state.volume);
             }
         }
     }
