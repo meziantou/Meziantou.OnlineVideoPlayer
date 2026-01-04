@@ -138,7 +138,7 @@ export class VideoPlayer {
         }
     }
 
-    private setVolume(volume: number) {
+    private setVolume(volume: number, showIndicator: boolean = true) {
         // Clamp volume between 0 and 2 (0% to 200%)
         volume = Math.max(0, Math.min(2, volume));
         this.currentVolume = volume;
@@ -150,7 +150,9 @@ export class VideoPlayer {
             this.videoElement.volume = Math.min(1, volume);
         }
         
-        this.showVolumeIndicator();
+        if (showIndicator) {
+            this.showVolumeIndicator();
+        }
         this.persistState();
     }
 
@@ -582,7 +584,7 @@ export class VideoPlayer {
             }
 
             if (typeof state.volume === "number") {
-                this.setVolume(state.volume);
+                this.setVolume(state.volume, false);
             }
         }
     }
