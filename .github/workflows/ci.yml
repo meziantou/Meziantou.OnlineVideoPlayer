@@ -23,4 +23,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create image
-        run: dotnet publish Meziantou.OnlineVideoPlayer/Meziantou.OnlineVideoPlayer.csproj --os linux --arch x64 --configuration Release /t:PublishContainer
+        run: dotnet publish Meziantou.OnlineVideoPlayer/Meziantou.OnlineVideoPlayer.csproj --os linux --arch x64 --configuration Release /t:PublishContainer /bl:publish.binlog
+      - name: Upload binlog
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: binlog
+          path: "**/*.binlog"
