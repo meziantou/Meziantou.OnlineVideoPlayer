@@ -12,10 +12,9 @@
 
   <ItemGroup>
     <PackageReference Include="Meziantou.Framework.FullPath" Version="1.1.12" />
-    <PackageReference Include="Microsoft.TypeScript.MSBuild" Version="5.9.3">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
   </ItemGroup>
-
+  
+  <Target Name="CompileTypeScript" BeforeTargets="BeforeBuild">
+    <Exec Command="npm run build" WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
 </Project>
