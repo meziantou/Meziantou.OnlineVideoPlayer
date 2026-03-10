@@ -39,24 +39,22 @@ app.MapGet("playlists/{Id}/tracks", async (HttpContext context, string id, IOpti
 
 app.MapGet("files/{**path}", (HttpContext context, string path, IOptions<PlayerConfiguration> options) =>
 {
-    path = path.Replace("%2f", "/", StringComparison.OrdinalIgnoreCase);
     var fullPath = GetFullPath(path, options, writeAccess: false);
     return Results.File(fullPath, enableRangeProcessing: true);
 });
 
 app.MapDelete("files/{**path}", (HttpContext context, ILogger<Program> logger, string path, IOptions<PlayerConfiguration> options) =>
 {
-    path = path.Replace("%2f", "/", StringComparison.OrdinalIgnoreCase);
+    var fullPath = GetFullPath(path, options, writeAccess: true);
     try
     {
-        var fullPath = GetFullPath(path, options, writeAccess: true);
         File.Delete(fullPath);
         return Results.Ok();
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Failed to delete file: {Path}", path);
-        return Results.InternalServerError(ex.Message);
+        logger.LogError(ex, "Failed to delete file: {Path}", fullPath);
+        return Results.Problem(ex.Message);
     }
 });
 
