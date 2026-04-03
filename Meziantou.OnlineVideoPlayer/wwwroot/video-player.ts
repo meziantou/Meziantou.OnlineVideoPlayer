@@ -286,9 +286,9 @@ export class VideoPlayer {
                 previousTrack(event);
             } else if (event.key === "Insert") {
                 previousTrack(event);
-            } else if (event.key === "PageDown") {
+            } else if (event.key === "PageDown" || event.key === ".") {
                 this.advanceCurrentTime(clamp(this.videoElement.duration * 0.1, 0, 300));
-            } else if (event.key === "PageUp") {
+            } else if (event.key === "PageUp" || event.key === ",") {
                 this.advanceCurrentTime(-clamp(this.videoElement.duration * 0.1, 0, 300));
             } else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.shiftKey && event.key === "ArrowRight") {
                 this.advanceCurrentTime(300);
@@ -298,10 +298,6 @@ export class VideoPlayer {
                 this.advanceCurrentTime(60);
             } else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.key === "ArrowLeft") {
                 this.advanceCurrentTime(-60);
-            } else if (event.key === ",") {
-                this.advanceCurrentTime(-300);
-            } else if (event.key === ".") {
-                this.advanceCurrentTime(300);
             } else if (event.shiftKey && event.key === "ArrowLeft") {
                 this.advanceCurrentTime(-5);
             } else if (event.shiftKey && event.key === "ArrowRight") {
