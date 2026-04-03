@@ -251,22 +251,16 @@ export class VideoPlayer {
             else if (event.key === "Insert") {
                 previousTrack(event);
             }
-            else if (event.key === "PageDown" || event.key === ".") {
+            else if (event.key === "PageDown" || event.key === "." || (((event.ctrlKey && event.shiftKey) || event.getModifierState("AltGraph")) && event.key === "ArrowRight")) {
                 this.advanceCurrentTime(clamp(this.videoElement.duration * 0.1, 0, 300));
             }
-            else if (event.key === "PageUp" || event.key === ",") {
+            else if (event.key === "PageUp" || event.key === "," || (((event.ctrlKey && event.shiftKey) || event.getModifierState("AltGraph")) && event.key === "ArrowLeft")) {
                 this.advanceCurrentTime(-clamp(this.videoElement.duration * 0.1, 0, 300));
             }
-            else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.shiftKey && event.key === "ArrowRight") {
-                this.advanceCurrentTime(300);
-            }
-            else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.shiftKey && event.key === "ArrowLeft") {
-                this.advanceCurrentTime(-300);
-            }
-            else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.key === "ArrowRight") {
+            else if (event.ctrlKey && event.key === "ArrowRight") {
                 this.advanceCurrentTime(60);
             }
-            else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.key === "ArrowLeft") {
+            else if (event.ctrlKey && event.key === "ArrowLeft") {
                 this.advanceCurrentTime(-60);
             }
             else if (event.shiftKey && event.key === "ArrowLeft") {
