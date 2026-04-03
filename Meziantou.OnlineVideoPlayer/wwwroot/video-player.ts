@@ -126,10 +126,10 @@ export class VideoPlayer {
             this.audioContext = new AudioContext();
             this.sourceNode = this.audioContext.createMediaElementSource(this.videoElement);
             this.gainNode = this.audioContext.createGain();
-            
+
             this.sourceNode.connect(this.gainNode);
             this.gainNode.connect(this.audioContext.destination);
-            
+
             // Set initial volume
             this.gainNode.gain.value = this.currentVolume;
         } catch (error) {
@@ -142,14 +142,14 @@ export class VideoPlayer {
         // Clamp volume between 0 and 2 (0% to 200%)
         volume = Math.max(0, Math.min(2, volume));
         this.currentVolume = volume;
-        
+
         if (this.gainNode) {
             this.gainNode.gain.value = volume;
         } else {
             // Fallback to video element volume (capped at 1)
             this.videoElement.volume = Math.min(1, volume);
         }
-        
+
         if (showIndicator) {
             this.showVolumeIndicator();
         }
@@ -165,7 +165,7 @@ export class VideoPlayer {
         const volumePercent = Math.round(this.currentVolume * 100);
         this.volumeElement.textContent = `🔊 ${volumePercent}%`;
         this.volumeElement.classList.add("visible");
-        
+
         // Hide after 2 seconds
         setTimeout(() => {
             this.volumeElement.classList.remove("visible");
@@ -181,7 +181,7 @@ export class VideoPlayer {
         const minutes = Math.floor(remainingTime / 60);
         const seconds = Math.floor(remainingTime % 60);
         const timeString = `${minutes}:${seconds.toString().padStart(2, "0")}`;
-        
+
         this.timerElement.textContent = `⏱️ Auto-pause in ${timeString}`;
     }
 
@@ -290,14 +290,18 @@ export class VideoPlayer {
                 this.advanceCurrentTime(clamp(this.videoElement.duration * 0.1, 0, 300));
             } else if (event.key === "PageUp") {
                 this.advanceCurrentTime(-clamp(this.videoElement.duration * 0.1, 0, 300));
-            } else if (event.ctrlKey && event.shiftKey && event.key === "ArrowRight") {
+            } else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.shiftKey && event.key === "ArrowRight") {
                 this.advanceCurrentTime(300);
-            } else if (event.ctrlKey && event.shiftKey && event.key === "ArrowLeft") {
+            } else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.shiftKey && event.key === "ArrowLeft") {
                 this.advanceCurrentTime(-300);
-            } else if (event.ctrlKey && event.key === "ArrowRight") {
+            } else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.key === "ArrowRight") {
                 this.advanceCurrentTime(60);
-            } else if (event.ctrlKey && event.key === "ArrowLeft") {
+            } else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.key === "ArrowLeft") {
                 this.advanceCurrentTime(-60);
+            } else if (event.key === ",") {
+                this.advanceCurrentTime(-300);
+            } else if (event.key === ".") {
+                this.advanceCurrentTime(300);
             } else if (event.shiftKey && event.key === "ArrowLeft") {
                 this.advanceCurrentTime(-5);
             } else if (event.shiftKey && event.key === "ArrowRight") {
@@ -350,13 +354,6 @@ export class VideoPlayer {
                 this.adjustVolume(0.05); // Increase by 5%
             } else if (event.key === "ArrowDown") {
                 this.adjustVolume(-0.05); // Decrease by 5%
-            } else if (event.key === "m") {
-                // Toggle mute
-                if (this.currentVolume > 0) {
-                    this.setVolume(0);
-                } else {
-                    this.setVolume(1);
-                }
             } else {
                 handled = false;
             }
@@ -497,7 +494,7 @@ export class VideoPlayer {
         let index = Math.floor(Math.random() * this.playlist.length);
         let attempts = 0;
         const maxAttempts = this.playlist.length * 2;
-        
+
         while (this.randomPlaylistHistoryIndexes.indexOf(index) !== -1 && attempts < maxAttempts) {
             index = Math.floor(Math.random() * this.playlist.length);
             attempts++;
@@ -593,7 +590,7 @@ export class VideoPlayer {
         if (!this.videoElement.paused && this.lastPlaybackTimestamp !== undefined) {
             this.updatePlaybackTime();
             this.updateTimerDisplay();
-            
+
             // Check if we've exceeded the max playback time
             if (this.totalPlaybackTime >= this.maxPlaybackTime) {
                 this.videoElement.pause();

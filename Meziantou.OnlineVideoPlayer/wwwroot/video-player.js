@@ -118,7 +118,7 @@ export class VideoPlayer {
             // Fall back to regular video volume control
         }
     }
-    setVolume(volume) {
+    setVolume(volume, showIndicator = true) {
         // Clamp volume between 0 and 2 (0% to 200%)
         volume = Math.max(0, Math.min(2, volume));
         this.currentVolume = volume;
@@ -129,7 +129,9 @@ export class VideoPlayer {
             // Fallback to video element volume (capped at 1)
             this.videoElement.volume = Math.min(1, volume);
         }
-        this.showVolumeIndicator();
+        if (showIndicator) {
+            this.showVolumeIndicator();
+        }
         this.persistState();
     }
     adjustVolume(delta) {
@@ -255,17 +257,23 @@ export class VideoPlayer {
             else if (event.key === "PageUp") {
                 this.advanceCurrentTime(-clamp(this.videoElement.duration * 0.1, 0, 300));
             }
-            else if (event.ctrlKey && event.shiftKey && event.key === "ArrowRight") {
+            else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.shiftKey && event.key === "ArrowRight") {
                 this.advanceCurrentTime(300);
             }
-            else if (event.ctrlKey && event.shiftKey && event.key === "ArrowLeft") {
+            else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.shiftKey && event.key === "ArrowLeft") {
                 this.advanceCurrentTime(-300);
             }
-            else if (event.ctrlKey && event.key === "ArrowRight") {
+            else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.key === "ArrowRight") {
                 this.advanceCurrentTime(60);
             }
-            else if (event.ctrlKey && event.key === "ArrowLeft") {
+            else if ((event.ctrlKey || event.getModifierState("AltGraph")) && event.key === "ArrowLeft") {
                 this.advanceCurrentTime(-60);
+            }
+            else if (event.key === ",") {
+                this.advanceCurrentTime(-300);
+            }
+            else if (event.key === ".") {
+                this.advanceCurrentTime(300);
             }
             else if (event.shiftKey && event.key === "ArrowLeft") {
                 this.advanceCurrentTime(-5);
@@ -337,15 +345,6 @@ export class VideoPlayer {
             }
             else if (event.key === "ArrowDown") {
                 this.adjustVolume(-0.05); // Decrease by 5%
-            }
-            else if (event.key === "m") {
-                // Toggle mute
-                if (this.currentVolume > 0) {
-                    this.setVolume(0);
-                }
-                else {
-                    this.setVolume(1);
-                }
             }
             else {
                 handled = false;
@@ -538,7 +537,7 @@ export class VideoPlayer {
                 this.videoElement.currentTime = state.currentTime;
             }
             if (typeof state.volume === "number") {
-                this.setVolume(state.volume);
+                this.setVolume(state.volume, false);
             }
         }
     }
