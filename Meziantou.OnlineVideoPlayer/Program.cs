@@ -24,7 +24,7 @@ app.MapGet("playlists", (HttpContext context, IOptions<PlayerConfiguration> opti
     {
         if (file.Extension is ".m3u" or ".m3u8")
         {
-            result.Add(file.Name!);
+            result.Add(file.Name);
         }
     }
 
