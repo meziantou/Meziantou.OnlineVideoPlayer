@@ -8,6 +8,7 @@ export class VideoPlayer {
     trackNameElement;
     timerElement;
     volumeElement;
+    autoplayPromptElement;
     audioContext = null;
     gainNode = null;
     sourceNode = null;
@@ -26,6 +27,7 @@ export class VideoPlayer {
     maxPlaybackTime = 3600; // 1 hour in seconds
     // Track if we're waiting for the page to become visible to start playback
     pendingAutoPlay = false;
+    autoplayBlocked = false;
     constructor(rootElement) {
         this.rootElement = rootElement;
         this.videoElement = document.createElement("video");
@@ -43,6 +45,9 @@ export class VideoPlayer {
         this.volumeElement = document.createElement("span");
         this.volumeElement.classList.add("volume");
         this.rootElement.appendChild(this.volumeElement);
+        this.autoplayPromptElement = document.createElement("span");
+        this.autoplayPromptElement.classList.add("autoplay-prompt");
+        this.rootElement.appendChild(this.autoplayPromptElement);
         const controls = document.createElement("div");
         controls.classList.add("controls");
         this.rootElement.appendChild(controls);
@@ -71,9 +76,7 @@ export class VideoPlayer {
             if (!document.hidden && this.pendingAutoPlay) {
                 // Page became visible and we have pending autoplay
                 this.pendingAutoPlay = false;
-                this.videoElement.play().catch(e => {
-                    console.error("Failed to start autoplay:", e);
-                });
+                this.startPlayback(true);
             }
         });
     }
@@ -84,20 +87,43 @@ export class VideoPlayer {
         }
         else {
             // Tab is visible, start playing immediately
-            // Resume AudioContext if suspended
-            if (this.audioContext && this.audioContext.state === 'suspended') {
-                this.audioContext.resume().then(() => {
-                    this.videoElement.play().catch(e => {
-                        console.error("Failed to start autoplay:", e);
-                    });
-                });
-            }
-            else {
-                this.videoElement.play().catch(e => {
-                    console.error("Failed to start autoplay:", e);
-                });
-            }
+            this.startPlayback(true);
         }
+    }
+    startPlayback(isAutoplayAttempt) {
+        const startPromise = this.audioContext && this.audioContext.state === "suspended"
+            ? this.audioContext.resume().then(() => this.videoElement.play())
+            : this.videoElement.play();
+        startPromise
+            .then(() => {
+            this.hideAutoplayPrompt();
+        })
+            .catch(error => {
+            if (isAutoplayAttempt && this.isExpectedAutoplayError(error)) {
+                this.showAutoplayPrompt();
+                return;
+            }
+            console.error("Failed to start playback:", error);
+        });
+    }
+    isExpectedAutoplayError(error) {
+        return error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "NotSupportedError");
+    }
+    showAutoplayPrompt() {
+        this.autoplayBlocked = true;
+        this.autoplayPromptElement.textContent = "▶️ Autoplay blocked. Click to play.";
+        this.autoplayPromptElement.classList.add("visible");
+    }
+    hideAutoplayPrompt() {
+        this.autoplayBlocked = false;
+        this.autoplayPromptElement.classList.remove("visible");
+    }
+    retryPlaybackIfBlocked() {
+        if (!this.autoplayBlocked) {
+            return false;
+        }
+        this.startPlayback(false);
+        return true;
     }
     displayTrackname() {
         this.updateTrackNameDisplay();
@@ -177,10 +203,15 @@ export class VideoPlayer {
             }
             const pos = offset / this.progressElement.offsetWidth;
             this.videoElement.currentTime = pos * this.videoElement.duration;
-            this.videoElement.play();
+            this.startPlayback(false);
         });
         this.rootElement.addEventListener("mousemove", () => this.displayCursor());
-        this.rootElement.addEventListener("click", () => this.displayCursor());
+        this.rootElement.addEventListener("click", (event) => {
+            this.displayCursor();
+            if (event.target !== this.videoElement) {
+                this.retryPlaybackIfBlocked();
+            }
+        });
         // Mouse wheel for volume control
         this.rootElement.addEventListener("wheel", (event) => {
             event.preventDefault();
@@ -191,6 +222,9 @@ export class VideoPlayer {
             this.nextTrack();
         });
         this.videoElement.addEventListener("click", () => {
+            if (this.retryPlaybackIfBlocked()) {
+                return;
+            }
             this.playPause();
         });
         this.videoElement.addEventListener("timeupdate", throttle(() => this.persistState(), 5000));
@@ -200,6 +234,7 @@ export class VideoPlayer {
         });
         // Track when video starts playing
         this.videoElement.addEventListener("play", () => {
+            this.hideAutoplayPrompt();
             this.lastPlaybackTimestamp = Date.now();
         });
         // Track when video pauses
@@ -375,11 +410,7 @@ export class VideoPlayer {
     }
     playPause() {
         if (this.videoElement.paused || this.videoElement.ended) {
-            // Resume AudioContext if suspended (required by browser autoplay policies)
-            if (this.audioContext && this.audioContext.state === 'suspended') {
-                this.audioContext.resume();
-            }
-            this.videoElement.play();
+            this.startPlayback(false);
         }
         else {
             this.videoElement.pause();
@@ -417,6 +448,7 @@ export class VideoPlayer {
         this.totalTimeElement.title = "";
         this.progressElement.value = 0;
         this.progressElement.max = 0;
+        this.hideAutoplayPrompt();
         try {
             this.tryAutoPlay();
         }

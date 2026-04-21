@@ -9,6 +9,7 @@ export class VideoPlayer {
   private trackNameElement: HTMLElement;
   private timerElement: HTMLElement;
   private volumeElement: HTMLElement;
+  private autoplayPromptElement: HTMLElement;
 
   private audioContext: AudioContext | null = null;
   private gainNode: GainNode | null = null;
@@ -33,6 +34,7 @@ export class VideoPlayer {
 
   // Track if we're waiting for the page to become visible to start playback
   private pendingAutoPlay: boolean = false;
+  private autoplayBlocked: boolean = false;
 
   constructor(rootElement: HTMLElement) {
     this.rootElement = rootElement;
@@ -56,6 +58,10 @@ export class VideoPlayer {
     this.volumeElement = document.createElement("span");
     this.volumeElement.classList.add("volume");
     this.rootElement.appendChild(this.volumeElement);
+
+    this.autoplayPromptElement = document.createElement("span");
+    this.autoplayPromptElement.classList.add("autoplay-prompt");
+    this.rootElement.appendChild(this.autoplayPromptElement);
 
     const controls = document.createElement("div");
     controls.classList.add("controls");
@@ -88,9 +94,7 @@ export class VideoPlayer {
       if (!document.hidden && this.pendingAutoPlay) {
         // Page became visible and we have pending autoplay
         this.pendingAutoPlay = false;
-        this.videoElement.play().catch(e => {
-          console.error("Failed to start autoplay:", e);
-        });
+        this.startPlayback(true);
       }
     });
   }
@@ -101,19 +105,51 @@ export class VideoPlayer {
       this.pendingAutoPlay = true;
     } else {
       // Tab is visible, start playing immediately
-      // Resume AudioContext if suspended
-      if (this.audioContext && this.audioContext.state === 'suspended') {
-        this.audioContext.resume().then(() => {
-          this.videoElement.play().catch(e => {
-            console.error("Failed to start autoplay:", e);
-          });
-        });
-      } else {
-        this.videoElement.play().catch(e => {
-          console.error("Failed to start autoplay:", e);
-        });
-      }
+      this.startPlayback(true);
     }
+  }
+
+  private startPlayback(isAutoplayAttempt: boolean) {
+    const startPromise = this.audioContext && this.audioContext.state === "suspended"
+      ? this.audioContext.resume().then(() => this.videoElement.play())
+      : this.videoElement.play();
+
+    startPromise
+      .then(() => {
+        this.hideAutoplayPrompt();
+      })
+      .catch(error => {
+        if (isAutoplayAttempt && this.isExpectedAutoplayError(error)) {
+          this.showAutoplayPrompt();
+          return;
+        }
+
+        console.error("Failed to start playback:", error);
+      });
+  }
+
+  private isExpectedAutoplayError(error: unknown): boolean {
+    return error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "NotSupportedError");
+  }
+
+  private showAutoplayPrompt() {
+    this.autoplayBlocked = true;
+    this.autoplayPromptElement.textContent = "▶️ Autoplay blocked. Click to play.";
+    this.autoplayPromptElement.classList.add("visible");
+  }
+
+  private hideAutoplayPrompt() {
+    this.autoplayBlocked = false;
+    this.autoplayPromptElement.classList.remove("visible");
+  }
+
+  private retryPlaybackIfBlocked() {
+    if (!this.autoplayBlocked) {
+      return false;
+    }
+
+    this.startPlayback(false);
+    return true;
   }
 
   private displayTrackname() {
@@ -209,11 +245,16 @@ export class VideoPlayer {
 
       const pos = offset / this.progressElement.offsetWidth;
       this.videoElement.currentTime = pos * this.videoElement.duration;
-      this.videoElement.play();
+      this.startPlayback(false);
     });
 
     this.rootElement.addEventListener("mousemove", () => this.displayCursor());
-    this.rootElement.addEventListener("click", () => this.displayCursor());
+    this.rootElement.addEventListener("click", (event) => {
+      this.displayCursor();
+      if (event.target !== this.videoElement) {
+        this.retryPlaybackIfBlocked();
+      }
+    });
 
     // Mouse wheel for volume control
     this.rootElement.addEventListener("wheel", (event) => {
@@ -227,6 +268,10 @@ export class VideoPlayer {
     });
 
     this.videoElement.addEventListener("click", () => {
+      if (this.retryPlaybackIfBlocked()) {
+        return;
+      }
+
       this.playPause();
     });
 
@@ -239,6 +284,7 @@ export class VideoPlayer {
 
     // Track when video starts playing
     this.videoElement.addEventListener("play", () => {
+      this.hideAutoplayPrompt();
       this.lastPlaybackTimestamp = Date.now();
     });
 
@@ -394,11 +440,7 @@ export class VideoPlayer {
 
   playPause() {
     if (this.videoElement.paused || this.videoElement.ended) {
-      // Resume AudioContext if suspended (required by browser autoplay policies)
-      if (this.audioContext && this.audioContext.state === 'suspended') {
-        this.audioContext.resume();
-      }
-      this.videoElement.play();
+      this.startPlayback(false);
     } else {
       this.videoElement.pause();
     }
@@ -443,6 +485,7 @@ export class VideoPlayer {
     this.totalTimeElement.title = "";
     this.progressElement.value = 0;
     this.progressElement.max = 0;
+    this.hideAutoplayPrompt();
 
     try {
       this.tryAutoPlay();
