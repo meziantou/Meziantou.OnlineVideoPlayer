@@ -91,12 +91,27 @@ export class VideoPlayer {
   private setupVisibilityHandling() {
     // Handle page visibility changes
     document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        this.recoverAudioOutput();
+      }
+
       if (!document.hidden && this.pendingAutoPlay) {
         // Page became visible and we have pending autoplay
         this.pendingAutoPlay = false;
         this.startPlayback(true);
       }
     });
+
+    window.addEventListener("focus", () => {
+      this.recoverAudioOutput();
+    });
+
+    const mediaDevices = navigator.mediaDevices;
+    if (mediaDevices && typeof mediaDevices.addEventListener === "function") {
+      mediaDevices.addEventListener("devicechange", () => {
+        this.recoverAudioOutput();
+      });
+    }
   }
 
   private tryAutoPlay() {
@@ -110,6 +125,8 @@ export class VideoPlayer {
   }
 
   private startPlayback(isAutoplayAttempt: boolean) {
+    this.recoverAudioOutput();
+
     const startPromise = this.audioContext && this.audioContext.state === "suspended"
       ? this.audioContext.resume().then(() => this.videoElement.play())
       : this.videoElement.play();
@@ -171,6 +188,25 @@ export class VideoPlayer {
     } catch (error) {
       console.error("Failed to initialize Web Audio API:", error);
       // Fall back to regular video volume control
+    }
+  }
+
+  private recoverAudioOutput() {
+    this.videoElement.defaultMuted = false;
+    this.videoElement.muted = false;
+
+    if (this.gainNode) {
+      this.gainNode.gain.value = this.currentVolume;
+    } else {
+      this.videoElement.volume = Math.min(1, this.currentVolume);
+    }
+
+    if (this.audioContext && this.audioContext.state === "suspended" && !this.videoElement.paused) {
+      this.audioContext.resume().catch(error => {
+        if (!this.isExpectedAutoplayError(error)) {
+          console.error("Failed to resume audio context during output recovery:", error);
+        }
+      });
     }
   }
 
@@ -272,6 +308,7 @@ export class VideoPlayer {
         return;
       }
 
+      this.recoverAudioOutput();
       this.playPause();
     });
 
@@ -285,6 +322,7 @@ export class VideoPlayer {
     // Track when video starts playing
     this.videoElement.addEventListener("play", () => {
       this.hideAutoplayPrompt();
+      this.recoverAudioOutput();
       this.lastPlaybackTimestamp = Date.now();
     });
 
