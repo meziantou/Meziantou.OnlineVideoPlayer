@@ -3,7 +3,7 @@
     "version": "10.0.203"
   },
   "msbuild-sdks": {
-    "Meziantou.NET.Sdk": "1.0.81",
-    "Meziantou.NET.Sdk.Web": "1.0.81"
+    "Meziantou.NET.Sdk": "1.0.83",
+    "Meziantou.NET.Sdk.Web": "1.0.83"
   }
 }
