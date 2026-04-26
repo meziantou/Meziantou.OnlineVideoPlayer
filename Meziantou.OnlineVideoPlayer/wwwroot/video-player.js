@@ -279,6 +279,7 @@ export class VideoPlayer {
                 event.preventDefault();
             }
         });
+        const isMacOS = navigator.platform.toLowerCase().includes("mac");
         document.addEventListener("keydown", (event) => {
             const nextTrack = (event) => {
                 if (event.shiftKey || event.ctrlKey) {
@@ -296,6 +297,7 @@ export class VideoPlayer {
                     this.previousTrack();
                 }
             };
+            const isLargeSeekModifierPressed = event.ctrlKey || (isMacOS && (event.metaKey || event.altKey));
             let handled = true;
             if (event.key === "Home") {
                 this.videoElement.currentTime = 0;
@@ -324,10 +326,10 @@ export class VideoPlayer {
             else if (event.key === "PageUp" || event.key === "," || (((event.ctrlKey && event.shiftKey) || event.getModifierState("AltGraph")) && event.key === "ArrowLeft")) {
                 this.advanceCurrentTime(-clamp(this.videoElement.duration * 0.1, 0, 300));
             }
-            else if (event.ctrlKey && event.key === "ArrowRight") {
+            else if (isLargeSeekModifierPressed && event.key === "ArrowRight") {
                 this.advanceCurrentTime(60);
             }
-            else if (event.ctrlKey && event.key === "ArrowLeft") {
+            else if (isLargeSeekModifierPressed && event.key === "ArrowLeft") {
                 this.advanceCurrentTime(-60);
             }
             else if (event.shiftKey && event.key === "ArrowLeft") {
