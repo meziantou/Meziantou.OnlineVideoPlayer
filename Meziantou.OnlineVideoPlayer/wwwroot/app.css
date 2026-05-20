@@ -141,6 +141,58 @@ body {
             opacity: 1;
         }
 
+    .video_player .shortcut-help {
+        color: white;
+        font-size: 1rem;
+        z-index: 3;
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        max-width: min(640px, calc(100vw - 30px));
+        max-height: calc(100vh - 30px);
+        overflow: auto;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 12px 16px;
+        border-radius: 12px;
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+        opacity: 0;
+        transition: opacity 0.2s ease-in-out;
+        pointer-events: none;
+    }
+
+        .video_player .shortcut-help.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .video_player .shortcut-help strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .video_player .shortcut-help ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .video_player .shortcut-help li {
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+
+        .video_player .shortcut-help kbd {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
     .video_player.mouse-idle {
         cursor: none;
     }

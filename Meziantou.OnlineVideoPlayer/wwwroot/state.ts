@@ -6,6 +6,7 @@ export interface VideoPlayerState {
     showRemainingTime: boolean | undefined;
     currentTime: number | undefined;
     volume: number | undefined;
+    monoAudio: boolean | undefined;
 }
 
 export function persistPlayerState(state: VideoPlayerState) {
