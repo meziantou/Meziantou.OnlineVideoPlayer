@@ -10,11 +10,21 @@ export class VideoPlayer {
   private timerElement: HTMLElement;
   private volumeElement: HTMLElement;
   private autoplayPromptElement: HTMLElement;
+  private shortcutsHelpElement: HTMLElement;
 
   private audioContext: AudioContext | null = null;
   private gainNode: GainNode | null = null;
   private sourceNode: MediaElementAudioSourceNode | null = null;
+  private channelSplitterNode: ChannelSplitterNode | null = null;
+  private channelMergerNode: ChannelMergerNode | null = null;
+  private stereoLeftGainNode: GainNode | null = null;
+  private stereoRightGainNode: GainNode | null = null;
+  private monoLeftGainNode: GainNode | null = null;
+  private monoRightGainNode: GainNode | null = null;
   private currentVolume: number = 1.0;
+  private monoAudio: boolean = false;
+  private hideVolumeIndicatorTimer: number | undefined;
+  private showShortcutsHelp: boolean = false;
 
   private playlist: string[] = [];
   private currentTrackIndex: number = -1;
@@ -62,6 +72,11 @@ export class VideoPlayer {
     this.autoplayPromptElement = document.createElement("span");
     this.autoplayPromptElement.classList.add("autoplay-prompt");
     this.rootElement.appendChild(this.autoplayPromptElement);
+
+    this.shortcutsHelpElement = document.createElement("div");
+    this.shortcutsHelpElement.classList.add("shortcut-help");
+    this.shortcutsHelpElement.innerHTML = this.getShortcutsHelpHtml();
+    this.rootElement.appendChild(this.shortcutsHelpElement);
 
     const controls = document.createElement("div");
     controls.classList.add("controls");
@@ -179,15 +194,45 @@ export class VideoPlayer {
       this.audioContext = new AudioContext();
       this.sourceNode = this.audioContext.createMediaElementSource(this.videoElement);
       this.gainNode = this.audioContext.createGain();
+      this.channelSplitterNode = this.audioContext.createChannelSplitter(2);
+      this.channelMergerNode = this.audioContext.createChannelMerger(2);
+      this.stereoLeftGainNode = this.audioContext.createGain();
+      this.stereoRightGainNode = this.audioContext.createGain();
+      this.monoLeftGainNode = this.audioContext.createGain();
+      this.monoRightGainNode = this.audioContext.createGain();
 
       this.sourceNode.connect(this.gainNode);
-      this.gainNode.connect(this.audioContext.destination);
+      this.gainNode.connect(this.channelSplitterNode);
+
+      this.channelSplitterNode.connect(this.stereoLeftGainNode, 0);
+      this.channelSplitterNode.connect(this.stereoRightGainNode, 1);
+      this.stereoLeftGainNode.connect(this.channelMergerNode, 0, 0);
+      this.stereoRightGainNode.connect(this.channelMergerNode, 0, 1);
+
+      this.channelSplitterNode.connect(this.monoLeftGainNode, 0);
+      this.channelSplitterNode.connect(this.monoRightGainNode, 1);
+      this.monoLeftGainNode.connect(this.channelMergerNode, 0, 0);
+      this.monoLeftGainNode.connect(this.channelMergerNode, 0, 1);
+      this.monoRightGainNode.connect(this.channelMergerNode, 0, 0);
+      this.monoRightGainNode.connect(this.channelMergerNode, 0, 1);
+
+      this.channelMergerNode.connect(this.audioContext.destination);
 
       // Set initial volume
       this.gainNode.gain.value = this.currentVolume;
+      this.applyAudioChannelMode();
     } catch (error) {
       console.error("Failed to initialize Web Audio API:", error);
       // Fall back to regular video volume control
+      this.audioContext = null;
+      this.sourceNode = null;
+      this.gainNode = null;
+      this.channelSplitterNode = null;
+      this.channelMergerNode = null;
+      this.stereoLeftGainNode = null;
+      this.stereoRightGainNode = null;
+      this.monoLeftGainNode = null;
+      this.monoRightGainNode = null;
     }
   }
 
@@ -197,6 +242,7 @@ export class VideoPlayer {
 
     if (this.gainNode) {
       this.gainNode.gain.value = this.currentVolume;
+      this.applyAudioChannelMode();
     } else {
       this.videoElement.volume = Math.min(1, this.currentVolume);
     }
@@ -228,6 +274,38 @@ export class VideoPlayer {
     this.persistState();
   }
 
+  private setMonoAudio(value: boolean, showIndicator: boolean = true) {
+    this.monoAudio = value;
+    this.applyAudioChannelMode();
+    if (showIndicator) {
+      this.showStatusIndicator(this.monoAudio ? "🎚️ Mono audio" : "🎚️ Stereo audio");
+    }
+
+    this.persistState();
+  }
+
+  private applyAudioChannelMode() {
+    if (!this.stereoLeftGainNode || !this.stereoRightGainNode || !this.monoLeftGainNode || !this.monoRightGainNode) {
+      return;
+    }
+
+    if (this.monoAudio) {
+      this.stereoLeftGainNode.gain.value = 0;
+      this.stereoRightGainNode.gain.value = 0;
+      this.monoLeftGainNode.gain.value = 0.5;
+      this.monoRightGainNode.gain.value = 0.5;
+    } else {
+      this.stereoLeftGainNode.gain.value = 1;
+      this.stereoRightGainNode.gain.value = 1;
+      this.monoLeftGainNode.gain.value = 0;
+      this.monoRightGainNode.gain.value = 0;
+    }
+  }
+
+  private toggleMonoAudio() {
+    this.setMonoAudio(!this.monoAudio);
+  }
+
   private adjustVolume(delta: number) {
     const newVolume = this.currentVolume + delta;
     this.setVolume(newVolume);
@@ -235,13 +313,53 @@ export class VideoPlayer {
 
   private showVolumeIndicator() {
     const volumePercent = Math.round(this.currentVolume * 100);
-    this.volumeElement.textContent = `🔊 ${volumePercent}%`;
+    this.showStatusIndicator(`🔊 ${volumePercent}%`);
+  }
+
+  private showStatusIndicator(value: string) {
+    this.volumeElement.textContent = value;
     this.volumeElement.classList.add("visible");
 
-    // Hide after 2 seconds
-    setTimeout(() => {
+    if (this.hideVolumeIndicatorTimer !== undefined) {
+      clearTimeout(this.hideVolumeIndicatorTimer);
+    }
+
+    this.hideVolumeIndicatorTimer = setTimeout(() => {
       this.volumeElement.classList.remove("visible");
+      this.hideVolumeIndicatorTimer = undefined;
     }, 2000);
+  }
+
+  private toggleShortcutsHelp() {
+    this.showShortcutsHelp = !this.showShortcutsHelp;
+    this.shortcutsHelpElement.classList.toggle("visible", this.showShortcutsHelp);
+  }
+
+  private getShortcutsHelpHtml() {
+    return `
+      <strong>Keyboard shortcuts</strong>
+      <ul>
+        <li><kbd>Space</kbd> Play/Pause</li>
+        <li><kbd>?</kbd> Show/Hide this help</li>
+        <li><kbd>A</kbd> Toggle mono audio</li>
+        <li><kbd>R</kbd> Toggle random mode</li>
+        <li><kbd>N</kbd> / <kbd>P</kbd> Next/Previous track</li>
+        <li><kbd>Shift+N</kbd> / <kbd>Shift+P</kbd> Invert random/sequential mode for next/previous</li>
+        <li><kbd>]</kbd> / <kbd>[</kbd> Invert random/sequential mode for next/previous</li>
+        <li><kbd>Ctrl+N</kbd> / <kbd>Ctrl+P</kbd> Invert random/sequential mode for next/previous</li>
+        <li><kbd>MediaTrackNext</kbd> / <kbd>MediaTrackPrevious</kbd> Next/Previous track</li>
+        <li><kbd>Home</kbd> Go to start, <kbd>End</kbd> Next track, <kbd>Insert</kbd> Previous track</li>
+        <li><kbd>ArrowLeft</kbd> / <kbd>ArrowRight</kbd> Seek -30s / +30s</li>
+        <li><kbd>Shift+ArrowLeft</kbd> / <kbd>Shift+ArrowRight</kbd> Seek -5s / +5s</li>
+        <li><kbd>Ctrl+ArrowLeft</kbd> / <kbd>Ctrl+ArrowRight</kbd> Seek -60s / +60s</li>
+        <li><kbd>Cmd+ArrowLeft/Right</kbd> or <kbd>Option+ArrowLeft/Right</kbd> (macOS) Seek -60s / +60s</li>
+        <li><kbd>PageUp</kbd>, <kbd>,</kbd>, <kbd>Ctrl+Shift+ArrowLeft</kbd>, <kbd>AltGr+ArrowLeft</kbd> Seek backward 10%</li>
+        <li><kbd>PageDown</kbd>, <kbd>.</kbd>, <kbd>Ctrl+Shift+ArrowRight</kbd>, <kbd>AltGr+ArrowRight</kbd> Seek forward 10%</li>
+        <li><kbd>0</kbd>-<kbd>9</kbd> Jump to 0%-90%</li>
+        <li><kbd>ArrowUp</kbd> / <kbd>ArrowDown</kbd> Volume +5% / -5%</li>
+        <li><kbd>Delete</kbd> Delete current file</li>
+        <li><kbd>T</kbd> / <kbd>B</kbd> Open tracks page</li>
+      </ul>`;
   }
 
   private updateTrackNameDisplay() {
@@ -357,6 +475,7 @@ export class VideoPlayer {
       };
 
       const isLargeSeekModifierPressed = event.ctrlKey || (isMacOS && (event.metaKey || event.altKey));
+      const invertedMode = this.random ? "sequential" : "random";
       let handled = true;
       if (event.key === "Home") {
         this.videoElement.currentTime = 0;
@@ -370,6 +489,10 @@ export class VideoPlayer {
         nextTrack(event);
       } else if (event.key === "p") {
         previousTrack(event);
+      } else if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === "]") {
+        this.nextTrack(invertedMode);
+      } else if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === "[") {
+        this.previousTrack(invertedMode);
       } else if (event.key === "Insert") {
         previousTrack(event);
       } else if (event.key === "PageDown" || event.key === "." || (((event.ctrlKey && event.shiftKey) || event.getModifierState("AltGraph")) && event.key === "ArrowRight")) {
@@ -390,6 +513,10 @@ export class VideoPlayer {
         this.advanceCurrentTime(30);
       } else if (event.key === "r") {
         this.setRandom(!this.random);
+      } else if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "a") {
+        this.toggleMonoAudio();
+      } else if (!event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "?" || (event.key === "/" && event.shiftKey))) {
+        this.toggleShortcutsHelp();
       } else if (event.key === "0") {
         this.setCurrentTime(0);
       } else if (event.key === "1") {
@@ -624,7 +751,8 @@ export class VideoPlayer {
       randomPlaylistQueueIndexes: this.randomPlaylistQueueIndexes,
       showRemainingTime: this.displayRemainingTime,
       currentTime: this.videoElement.currentTime,
-      volume: this.currentVolume
+      volume: this.currentVolume,
+      monoAudio: this.monoAudio
     });
   }
 
@@ -657,6 +785,10 @@ export class VideoPlayer {
 
       if (typeof state.volume === "number") {
         this.setVolume(state.volume, false);
+      }
+
+      if (typeof state.monoAudio === "boolean") {
+        this.setMonoAudio(state.monoAudio, false);
       }
     }
   }
