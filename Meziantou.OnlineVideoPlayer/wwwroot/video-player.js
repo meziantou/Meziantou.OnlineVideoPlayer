@@ -305,7 +305,7 @@ export class VideoPlayer {
         <li><kbd>PageDown</kbd>, <kbd>.</kbd>, <kbd>Ctrl+Shift+ArrowRight</kbd>, <kbd>AltGr+ArrowRight</kbd> Seek forward 10%</li>
         <li><kbd>0</kbd>-<kbd>9</kbd> Jump to 0%-90%</li>
         <li><kbd>ArrowUp</kbd> / <kbd>ArrowDown</kbd> Volume +5% / -5%</li>
-        <li><kbd>Delete</kbd> Delete current file</li>
+        <li><kbd>Delete</kbd> / <kbd>Backspace</kbd> Delete current file</li>
         <li><kbd>T</kbd> / <kbd>B</kbd> Open tracks page</li>
       </ul>`;
     }
@@ -496,7 +496,7 @@ export class VideoPlayer {
             else if (event.key === "9") {
                 this.setCurrentTime(this.videoElement.duration * 0.9);
             }
-            else if (event.key === "Delete") {
+            else if (event.key === "Delete" || event.key === "Backspace") {
                 if (this.currentTrackName && confirm("delete " + this.currentTrackName)) {
                     const currentTrack = this.currentTrackName;
                     this.nextTrack();
