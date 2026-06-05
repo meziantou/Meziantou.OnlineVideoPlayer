@@ -497,17 +497,11 @@ export class VideoPlayer {
                 this.setCurrentTime(this.videoElement.duration * 0.9);
             }
             else if (event.key === "Delete" || event.key === "Backspace") {
-                if (this.currentTrackName && confirm("delete " + this.currentTrackName)) {
+                if (this.currentTrackName) {
                     const currentTrack = this.currentTrackName;
-                    this.nextTrack();
-                    fetch("/files/" + encodeURIComponent(currentTrack), { method: "DELETE" })
-                        .then(response => {
-                        if (response.status >= 200 && response.status < 300) {
-                            return;
-                        }
-                        alert("Failed to delete " + currentTrack);
-                    })
-                        .catch(() => alert("Failed to delete " + currentTrack));
+                    if (confirm("Delete " + currentTrack + "?")) {
+                        void this.deleteTrack(currentTrack);
+                    }
                 }
             }
             else if (event.key === "t") {
@@ -573,6 +567,44 @@ export class VideoPlayer {
         const response = await fetch("/playlists");
         const playlists = await response.json();
         return playlists;
+    }
+    async deleteTrack(trackPath) {
+        try {
+            const response = await fetch("/files/" + encodeURIComponent(trackPath), { method: "DELETE" });
+            if (response.status >= 200 && response.status < 300) {
+                if (this.currentTrackName === trackPath) {
+                    this.nextTrack();
+                }
+                return;
+            }
+            await this.handleDeleteFailure(trackPath);
+        }
+        catch (error) {
+            console.error("Failed to delete track:", error);
+            await this.handleDeleteFailure(trackPath);
+        }
+    }
+    async handleDeleteFailure(trackPath) {
+        const copiedToClipboard = await this.copyToClipboard(trackPath);
+        if (copiedToClipboard) {
+            alert("Failed to delete " + trackPath + ". The path was copied to the clipboard.");
+        }
+        else {
+            alert("Failed to delete " + trackPath + ". Unable to copy the path to the clipboard.");
+        }
+    }
+    async copyToClipboard(value) {
+        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+            return false;
+        }
+        try {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+        catch (error) {
+            console.error("Failed to copy path to clipboard:", error);
+            return false;
+        }
     }
     async fetchPlaylistItems(playlist) {
         const response = await fetch(`/playlists/${encodeURIComponent(playlist)}/tracks`);
