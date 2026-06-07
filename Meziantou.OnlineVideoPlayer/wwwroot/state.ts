@@ -1,6 +1,7 @@
 export interface VideoPlayerState {
     random: boolean | undefined;
     currentTrackIndex: number | undefined;
+    currentTrackPath: string | undefined;
     randomPlaylistHistoryIndexes: number[] | undefined;
     randomPlaylistQueueIndexes: number[] | undefined;
     showRemainingTime: boolean | undefined;

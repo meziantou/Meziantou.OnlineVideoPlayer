@@ -21,6 +21,7 @@ export class TrackList {
                 const track = e.target.textContent || "";
                 const state = loadPlayerState() || {};
                 state.currentTrackIndex = this.tracks.indexOf(track);
+                state.currentTrackPath = track;
                 state.currentTime = 0;
                 persistPlayerState(state);
             }
