@@ -26,6 +26,7 @@ export class TrackList {
 
                 const state = loadPlayerState() || ({} as VideoPlayerState);
                 state.currentTrackIndex = this.tracks.indexOf(track);
+                state.currentTrackPath = track;
                 state.currentTime = 0;
                 persistPlayerState(state);
             }

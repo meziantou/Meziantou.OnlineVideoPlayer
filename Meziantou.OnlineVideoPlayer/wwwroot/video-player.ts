@@ -781,6 +781,7 @@ export class VideoPlayer {
     playerState.persistPlayerState({
       random: this.random,
       currentTrackIndex: this.currentTrackIndex,
+      currentTrackPath: this.currentTrackIndex >= 0 ? this.playlist[this.currentTrackIndex] : undefined,
       randomPlaylistHistoryIndexes: this.randomPlaylistHistoryIndexes,
       randomPlaylistQueueIndexes: this.randomPlaylistQueueIndexes,
       showRemainingTime: this.displayRemainingTime,
@@ -809,8 +810,20 @@ export class VideoPlayer {
         this.randomPlaylistHistoryIndexes = state.randomPlaylistHistoryIndexes;
       }
 
-      if (typeof state.currentTrackIndex === "number") {
-        this.setTrackIndex(state.currentTrackIndex);
+      let trackIndexToRestore: number | undefined;
+      if (typeof state.currentTrackPath === "string") {
+        const trackIndexFromPath = this.playlist.indexOf(state.currentTrackPath);
+        if (trackIndexFromPath !== -1) {
+          trackIndexToRestore = trackIndexFromPath;
+        }
+      }
+
+      if (trackIndexToRestore === undefined && typeof state.currentTrackIndex === "number") {
+        trackIndexToRestore = state.currentTrackIndex;
+      }
+
+      if (typeof trackIndexToRestore === "number") {
+        this.setTrackIndex(trackIndexToRestore);
       }
 
       if (typeof state.currentTime === "number") {
