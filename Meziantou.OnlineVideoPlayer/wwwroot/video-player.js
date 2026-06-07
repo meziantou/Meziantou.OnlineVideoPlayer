@@ -585,16 +585,19 @@ export class VideoPlayer {
         }
     }
     async handleDeleteFailure(trackPath) {
-        const copiedToClipboard = await this.copyToClipboard(trackPath);
+        const command = `rm "${trackPath}"`;
+        console.error("Delete command:", command);
+        const copiedToClipboard = await this.copyToClipboard(command);
         if (copiedToClipboard) {
-            alert("Failed to delete " + trackPath + ". The path was copied to the clipboard.");
+            alert("Failed to delete " + trackPath + '. The command ' + command + " was copied to the clipboard.");
         }
         else {
-            alert("Failed to delete " + trackPath + ". Unable to copy the path to the clipboard.");
+            alert("Failed to delete " + trackPath + ". Unable to copy the command to the clipboard.");
         }
     }
     async copyToClipboard(value) {
         if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+            console.error("Unable to copy value to clipboard:", value);
             return false;
         }
         try {
@@ -602,7 +605,7 @@ export class VideoPlayer {
             return true;
         }
         catch (error) {
-            console.error("Failed to copy path to clipboard:", error);
+            console.error("Failed to copy value to clipboard:", value, error);
             return false;
         }
     }
