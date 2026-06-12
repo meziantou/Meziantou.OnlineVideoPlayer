@@ -68,12 +68,18 @@ body {
         text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8), -1px -1px 2px rgba(0, 0, 0, 0.5);
     }
 
+        .video_player .trackname .filesize {
+            display: block;
+            font-size: 1rem;
+            margin-top: 2px;
+        }
+
     .video_player .timer {
         color: white;
         font-size: 1.4rem;
         z-index: 1;
         position: absolute;
-        top: 65px;
+        top: 95px;
         left: 15px;
         max-width: calc(100vw - 30px);
         overflow: hidden;

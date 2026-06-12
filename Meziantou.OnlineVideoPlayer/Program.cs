@@ -43,6 +43,13 @@ app.MapGet("files/{**path}", (HttpContext context, string path, IOptions<PlayerC
     return Results.File(fullPath, enableRangeProcessing: true);
 });
 
+app.MapGet("file-details/{**path}", (string path, IOptions<PlayerConfiguration> options) =>
+{
+    var fullPath = GetFullPath(path, options, writeAccess: false);
+    var details = new FileDetails(new FileInfo(fullPath).Length);
+    return Results.Json(details, CustomJsonSerializationContext.Default.FileDetails);
+});
+
 app.MapDelete("files/{**path}", (HttpContext context, ILogger<Program> logger, string path, IOptions<PlayerConfiguration> options) =>
 {
     var fullPath = GetFullPath(path, options, writeAccess: true);

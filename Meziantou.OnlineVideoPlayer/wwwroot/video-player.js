@@ -6,6 +6,8 @@ export class VideoPlayer {
     currentTimeElement;
     totalTimeElement;
     trackNameElement;
+    trackTitleElement;
+    fileSizeElement;
     timerElement;
     volumeElement;
     autoplayPromptElement;
@@ -49,6 +51,11 @@ export class VideoPlayer {
         this.trackNameElement = document.createElement("span");
         this.trackNameElement.classList.add("trackname");
         this.rootElement.appendChild(this.trackNameElement);
+        this.trackTitleElement = document.createElement("span");
+        this.trackNameElement.appendChild(this.trackTitleElement);
+        this.fileSizeElement = document.createElement("span");
+        this.fileSizeElement.classList.add("filesize");
+        this.trackNameElement.appendChild(this.fileSizeElement);
         this.timerElement = document.createElement("span");
         this.timerElement.classList.add("timer");
         this.rootElement.appendChild(this.timerElement);
@@ -310,7 +317,23 @@ export class VideoPlayer {
       </ul>`;
     }
     updateTrackNameDisplay() {
-        this.trackNameElement.textContent = this.currentTrackName || "";
+        this.trackTitleElement.textContent = this.currentTrackName || "";
+    }
+    async updateFileDetails(trackPath) {
+        this.fileSizeElement.textContent = "";
+        try {
+            const response = await fetch("/file-details/" + encodeURIComponent(trackPath));
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const details = await response.json();
+            if (this.currentTrackName === trackPath) {
+                this.fileSizeElement.textContent = formatFileSize(details.size);
+            }
+        }
+        catch (error) {
+            console.error("Failed to fetch file details:", error);
+        }
     }
     updateTimerDisplay() {
         const remainingTime = this.maxPlaybackTime - this.totalPlaybackTime;
@@ -626,6 +649,7 @@ export class VideoPlayer {
         this.currentTrackIndex = trackIndex;
         this.currentTrackName = url;
         this.updateTrackNameDisplay();
+        void this.updateFileDetails(url);
         this.videoElement.src = "files/" + encodeURIComponent(url);
         this.updateDocumentTitle();
         this.displayTrackname();
@@ -785,12 +809,22 @@ export class VideoPlayer {
     }
     showAutoPauseMessage() {
         // Show a temporary message using the track name element
-        this.trackNameElement.textContent = "⏸️ Auto-paused after 1 hour of playback";
+        this.trackTitleElement.textContent = "⏸️ Auto-paused after 1 hour of playback";
         setTimeout(() => {
             this.updateTrackNameDisplay();
             this.updateTimerDisplay();
         }, 5000);
     }
+}
+function formatFileSize(bytes) {
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let unitIndex = 0;
+    while (bytes >= 1024 && unitIndex < units.length - 1) {
+        bytes /= 1024;
+        unitIndex++;
+    }
+    const value = Math.round(bytes * 10) / 10;
+    return `${value}${units[unitIndex]}`;
 }
 function throttle(mainFunction, delay) {
     let timerInstance = null;
