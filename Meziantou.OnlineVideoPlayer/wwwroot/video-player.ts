@@ -13,6 +13,7 @@ export class VideoPlayer {
   private trackNameElement: HTMLElement;
   private trackTitleElement: HTMLElement;
   private fileSizeElement: HTMLElement;
+  private videoResolutionElement: HTMLElement;
   private timerElement: HTMLElement;
   private volumeElement: HTMLElement;
   private autoplayPromptElement: HTMLElement;
@@ -70,9 +71,17 @@ export class VideoPlayer {
     this.trackTitleElement = document.createElement("span");
     this.trackNameElement.appendChild(this.trackTitleElement);
 
+    const trackDetailsElement = document.createElement("span");
+    trackDetailsElement.classList.add("details");
+    this.trackNameElement.appendChild(trackDetailsElement);
+
     this.fileSizeElement = document.createElement("span");
     this.fileSizeElement.classList.add("filesize");
-    this.trackNameElement.appendChild(this.fileSizeElement);
+    trackDetailsElement.appendChild(this.fileSizeElement);
+
+    this.videoResolutionElement = document.createElement("span");
+    this.videoResolutionElement.classList.add("resolution");
+    trackDetailsElement.appendChild(this.videoResolutionElement);
 
     this.timerElement = document.createElement("span");
     this.timerElement.classList.add("timer");
@@ -452,6 +461,12 @@ export class VideoPlayer {
       this.nextTrack();
     });
 
+    this.videoElement.addEventListener("loadedmetadata", () => {
+      if (this.videoElement.videoWidth > 0 && this.videoElement.videoHeight > 0) {
+        this.videoResolutionElement.textContent = `${this.videoElement.videoWidth}x${this.videoElement.videoHeight}`;
+      }
+    });
+
     this.videoElement.addEventListener("click", () => {
       if (this.retryPlaybackIfBlocked()) {
         return;
@@ -710,6 +725,7 @@ export class VideoPlayer {
     this.updateTrackNameDisplay();
     void this.updateFileDetails(url);
 
+    this.videoResolutionElement.textContent = "";
     this.videoElement.src = "files/" + encodeURIComponent(url);
     this.updateDocumentTitle();
     this.displayTrackname();
