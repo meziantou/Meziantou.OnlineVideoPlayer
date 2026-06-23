@@ -2,6 +2,7 @@
 
 namespace Meziantou.OnlineVideoPlayer;
 
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(IEnumerable<string>))]
 [JsonSerializable(typeof(FileDetails))]
 [JsonSerializable(typeof(List<string>))]
