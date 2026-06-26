@@ -4,6 +4,7 @@ using Meziantou.OnlineVideoPlayer.Pages;
 using Meziantou.AspNetCore.ServiceDefaults;
 using Meziantou.Framework;
 using Microsoft.Extensions.Options;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.UseMeziantouConventions(options =>
@@ -72,22 +73,53 @@ static string GetFullPath(string path, IOptions<PlayerConfiguration> options, bo
     var root = writeAccess ? options.Value.RootFolderReadWrite : options.Value.RootFolderReadOnly;
     path = path.Replace("%2f", "/", StringComparison.OrdinalIgnoreCase);
     var fullPath = Path.Combine(root, path);
-    if (!File.Exists(fullPath))
-    {
-        var found = false;
-        foreach (var probe in options.Value.ProbePaths)
-        {
-            fullPath = Path.Combine(root, probe, path);
-            if (File.Exists(fullPath))
-            {
-                found = true;
-                break;
-            }
-        }
+    if (File.Exists(fullPath))
+        return fullPath;
 
-        if (!found)
-            throw new InvalidOperationException("File not found: " + path);
+    foreach (var probe in options.Value.ProbePaths)
+    {
+        fullPath = Path.Combine(root, probe, path);
+        if (File.Exists(fullPath))
+            return fullPath;
     }
 
-    return fullPath;
+    var normalizedPath = NormalizePath(path);
+    foreach (var searchRoot in GetSearchRoots(root, options.Value.ProbePaths))
+    {
+        var found = TryFindFileByNormalizedRelativePath(searchRoot, normalizedPath);
+        if (found is not null)
+            return found;
+    }
+
+    throw new InvalidOperationException("File not found: " + path);
+}
+
+static IEnumerable<string> GetSearchRoots(string root, IEnumerable<string> probePaths)
+{
+    yield return root;
+
+    foreach (var probe in probePaths)
+        yield return Path.Combine(root, probe);
+}
+
+static string? TryFindFileByNormalizedRelativePath(string searchRoot, string normalizedPath)
+{
+    if (!Directory.Exists(searchRoot))
+        return null;
+
+    foreach (var file in Directory.EnumerateFiles(searchRoot, "*", SearchOption.AllDirectories))
+    {
+        var relativePath = Path.GetRelativePath(searchRoot, file);
+        if (NormalizePath(relativePath) == normalizedPath)
+        {
+            return file;
+        }
+    }
+
+    return null;
+}
+
+static string NormalizePath(string value)
+{
+    return value.Replace('\\', '/').Normalize(NormalizationForm.FormC);
 }
