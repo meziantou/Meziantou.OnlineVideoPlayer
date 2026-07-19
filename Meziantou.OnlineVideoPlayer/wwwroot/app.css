@@ -19,7 +19,25 @@ body {
     grid-template-rows: 1fr var(--controls-size);
     align-items: center;
     justify-items: stretch;
+    position: relative;
 }
+
+    .video_player.drag-over::after {
+        content: "Drop local media files to play";
+        position: absolute;
+        inset: 20px;
+        border: 2px dashed rgba(255, 255, 255, 0.7);
+        border-radius: 14px;
+        color: white;
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(4px);
+        pointer-events: none;
+        z-index: 4;
+    }
 
     .video_player video {
         max-height: calc(100vh - var(--controls-size));

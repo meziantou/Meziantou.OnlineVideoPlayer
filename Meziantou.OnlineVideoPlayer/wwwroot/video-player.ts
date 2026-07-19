@@ -4,6 +4,19 @@ interface FileDetails {
   size: number;
 }
 
+interface RemotePlaylistItem {
+  type: "remote";
+  path: string;
+}
+
+interface LocalPlaylistItem {
+  type: "local";
+  fileName: string;
+  objectUrl: string;
+}
+
+type PlaylistItem = RemotePlaylistItem | LocalPlaylistItem;
+
 export class VideoPlayer {
   private rootElement: HTMLElement;
   private videoElement: HTMLVideoElement;
@@ -33,9 +46,12 @@ export class VideoPlayer {
   private hideVolumeIndicatorTimer: number | undefined;
   private showShortcutsHelp: boolean = false;
 
-  private playlist: string[] = [];
+  private playlist: PlaylistItem[] = [];
   private currentTrackIndex: number = -1;
   private currentTrackName: string | undefined;
+  private currentTrackPath: string | undefined;
+  private localObjectUrls: string[] = [];
+  private dragOverDepth: number = 0;
 
   private random: boolean = true;
   private randomPlaylistHistoryIndexes: number[] = [];
@@ -112,7 +128,9 @@ export class VideoPlayer {
     controls.appendChild(this.totalTimeElement);
 
     this.registerEvents();
+    this.registerDragAndDropEvents();
     this.setupVisibilityHandling();
+    window.addEventListener("beforeunload", () => this.revokeLocalObjectUrls());
     this.fetchPlaylists().then(playlists => {
       if (playlists.length > 0) {
         this.fetchPlaylistItems(playlists[0]).then(() => {
@@ -398,7 +416,7 @@ export class VideoPlayer {
       }
 
       const details: FileDetails = await response.json();
-      if (this.currentTrackName === trackPath) {
+      if (this.currentTrackPath === trackPath) {
         this.fileSizeElement.textContent = formatFileSize(details.size);
       }
     } catch (error) {
@@ -584,10 +602,10 @@ export class VideoPlayer {
       } else if (event.key === "9") {
         this.setCurrentTime(this.videoElement.duration * 0.9);
       } else if (event.key === "Delete" || event.key === "Backspace") {
-        if (this.currentTrackName) {
-          const currentTrack = this.currentTrackName;
-          if (confirm("Delete " + currentTrack + "?")) {
-            void this.deleteTrack(currentTrack);
+        if (this.currentTrackPath) {
+          const currentTrackPath = this.currentTrackPath;
+          if (confirm("Delete " + currentTrackPath + "?")) {
+            void this.deleteTrack(currentTrackPath);
           }
         }
       } else if (event.key === "t") {
@@ -607,6 +625,102 @@ export class VideoPlayer {
         event.stopPropagation();
       }
     });
+  }
+
+  private registerDragAndDropEvents() {
+    this.rootElement.addEventListener("dragenter", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.dragOverDepth++;
+      this.rootElement.classList.add("drag-over");
+    });
+
+    this.rootElement.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+    });
+
+    this.rootElement.addEventListener("dragleave", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.dragOverDepth = Math.max(0, this.dragOverDepth - 1);
+      if (this.dragOverDepth === 0) {
+        this.rootElement.classList.remove("drag-over");
+      }
+    });
+
+    this.rootElement.addEventListener("drop", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.dragOverDepth = 0;
+      this.rootElement.classList.remove("drag-over");
+      const droppedFiles = this.getDroppedPlayableFiles(event.dataTransfer);
+      if (droppedFiles.length === 0) {
+        this.showStatusIndicator("⚠️ No playable files found");
+        return;
+      }
+
+      this.switchToLocalPlaylist(droppedFiles);
+      this.showStatusIndicator(`📂 ${droppedFiles.length} local file${droppedFiles.length > 1 ? "s" : ""} queued`);
+    });
+  }
+
+  private getDroppedPlayableFiles(dataTransfer: DataTransfer | null): File[] {
+    if (!dataTransfer) {
+      return [];
+    }
+
+    const files = Array.from(dataTransfer.files);
+    return files.filter(file => this.isPlayableFile(file));
+  }
+
+  private isPlayableFile(file: File): boolean {
+    if (file.type) {
+      return this.videoElement.canPlayType(file.type) !== "";
+    }
+
+    const fileName = file.name.toLowerCase();
+    return fileName.endsWith(".mp4")
+      || fileName.endsWith(".webm")
+      || fileName.endsWith(".mkv")
+      || fileName.endsWith(".m4v")
+      || fileName.endsWith(".mov")
+      || fileName.endsWith(".avi")
+      || fileName.endsWith(".mp3")
+      || fileName.endsWith(".m4a")
+      || fileName.endsWith(".aac")
+      || fileName.endsWith(".flac")
+      || fileName.endsWith(".ogg")
+      || fileName.endsWith(".wav");
+  }
+
+  private switchToLocalPlaylist(files: File[]) {
+    this.revokeLocalObjectUrls();
+    this.playlist = files.map(file => {
+      const objectUrl = URL.createObjectURL(file);
+      this.localObjectUrls.push(objectUrl);
+      return {
+        type: "local",
+        fileName: file.name,
+        objectUrl: objectUrl,
+      };
+    });
+    this.randomPlaylistHistoryIndexes = [];
+    this.randomPlaylistQueueIndexes = [];
+    this.currentTrackIndex = -1;
+    this.currentTrackName = undefined;
+    this.currentTrackPath = undefined;
+    this.setTrackIndex(0);
+  }
+
+  private revokeLocalObjectUrls() {
+    for (const objectUrl of this.localObjectUrls) {
+      URL.revokeObjectURL(objectUrl);
+    }
+    this.localObjectUrls = [];
   }
 
   private advanceCurrentTime(relativeTime: number) {
@@ -662,7 +776,7 @@ export class VideoPlayer {
     try {
       const response = await fetch("/files/" + encodeURIComponent(trackPath), { method: "DELETE" });
       if (response.status >= 200 && response.status < 300) {
-        if (this.currentTrackName === trackPath) {
+        if (this.currentTrackPath === trackPath) {
           this.nextTrack();
         }
 
@@ -704,8 +818,12 @@ export class VideoPlayer {
 
   async fetchPlaylistItems(playlist: string) {
     const response = await fetch(`/playlists/${encodeURIComponent(playlist)}/tracks`);
-    const tracks = await response.json();
-    this.playlist = tracks || [];
+    const tracks: string[] = await response.json();
+    this.revokeLocalObjectUrls();
+    this.playlist = (tracks || []).map(track => ({
+      type: "remote",
+      path: track,
+    }));
   }
 
   setTrackIndex(trackIndex: number) {
@@ -719,14 +837,19 @@ export class VideoPlayer {
 
     trackIndex = trackIndex % this.playlist.length;
 
-    const url = this.playlist[trackIndex];
+    const track = this.playlist[trackIndex];
     this.currentTrackIndex = trackIndex;
-    this.currentTrackName = url;
+    this.currentTrackName = track.type === "remote" ? track.path : track.fileName;
+    this.currentTrackPath = track.type === "remote" ? track.path : undefined;
     this.updateTrackNameDisplay();
-    void this.updateFileDetails(url);
+    if (track.type === "remote") {
+      void this.updateFileDetails(track.path);
+    } else {
+      this.fileSizeElement.textContent = "";
+    }
 
     this.videoResolutionElement.textContent = "";
-    this.videoElement.src = "files/" + encodeURIComponent(url);
+    this.videoElement.src = track.type === "remote" ? "files/" + encodeURIComponent(track.path) : track.objectUrl;
     this.updateDocumentTitle();
     this.displayTrackname();
     this.displayCursor(); // Show title for idle period when track changes
@@ -829,14 +952,16 @@ export class VideoPlayer {
   }
 
   private persistState() {
+    const currentTrack = this.currentTrackIndex >= 0 ? this.playlist[this.currentTrackIndex] : undefined;
+    const currentRemoteTrack = currentTrack?.type === "remote" ? currentTrack : undefined;
     playerState.persistPlayerState({
       random: this.random,
-      currentTrackIndex: this.currentTrackIndex,
-      currentTrackPath: this.currentTrackIndex >= 0 ? this.playlist[this.currentTrackIndex] : undefined,
-      randomPlaylistHistoryIndexes: this.randomPlaylistHistoryIndexes,
-      randomPlaylistQueueIndexes: this.randomPlaylistQueueIndexes,
+      currentTrackIndex: currentRemoteTrack ? this.currentTrackIndex : undefined,
+      currentTrackPath: currentRemoteTrack?.path,
+      randomPlaylistHistoryIndexes: currentRemoteTrack ? this.randomPlaylistHistoryIndexes : undefined,
+      randomPlaylistQueueIndexes: currentRemoteTrack ? this.randomPlaylistQueueIndexes : undefined,
       showRemainingTime: this.displayRemainingTime,
-      currentTime: this.videoElement.currentTime,
+      currentTime: currentRemoteTrack ? this.videoElement.currentTime : undefined,
       volume: this.currentVolume,
       monoAudio: this.monoAudio
     });
@@ -854,22 +979,26 @@ export class VideoPlayer {
       }
 
       if (Array.isArray(state.randomPlaylistQueueIndexes)) {
-        this.randomPlaylistQueueIndexes = state.randomPlaylistQueueIndexes;
+        this.randomPlaylistQueueIndexes = state.randomPlaylistQueueIndexes
+          .filter(index => Number.isInteger(index))
+          .filter(index => typeof index === "number" && index >= -1 && index < this.playlist.length);
       }
 
       if (Array.isArray(state.randomPlaylistHistoryIndexes)) {
-        this.randomPlaylistHistoryIndexes = state.randomPlaylistHistoryIndexes;
+        this.randomPlaylistHistoryIndexes = state.randomPlaylistHistoryIndexes
+          .filter(index => Number.isInteger(index))
+          .filter(index => typeof index === "number" && index >= -1 && index < this.playlist.length);
       }
 
       let trackIndexToRestore: number | undefined;
       if (typeof state.currentTrackPath === "string") {
-        const trackIndexFromPath = this.playlist.indexOf(state.currentTrackPath);
+        const trackIndexFromPath = this.playlist.findIndex(track => track.type === "remote" && track.path === state.currentTrackPath);
         if (trackIndexFromPath !== -1) {
           trackIndexToRestore = trackIndexFromPath;
         }
       }
 
-      if (trackIndexToRestore === undefined && typeof state.currentTrackIndex === "number") {
+      if (trackIndexToRestore === undefined && typeof state.currentTrackIndex === "number" && state.currentTrackIndex >= 0 && state.currentTrackIndex < this.playlist.length) {
         trackIndexToRestore = state.currentTrackIndex;
       }
 
