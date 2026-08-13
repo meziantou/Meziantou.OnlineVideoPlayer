@@ -45,6 +45,7 @@ export class VideoPlayer {
   private monoAudio: boolean = false;
   private hideVolumeIndicatorTimer: number | undefined;
   private showShortcutsHelp: boolean = false;
+  private videoClickTimer: number | undefined;
 
   private playlist: PlaylistItem[] = [];
   private currentTrackIndex: number = -1;
@@ -380,6 +381,7 @@ export class VideoPlayer {
       <strong>Keyboard shortcuts</strong>
       <ul>
         <li><kbd>Space</kbd> Play/Pause</li>
+        <li><kbd>Double click</kbd> Toggle fullscreen, <kbd>Esc</kbd> Exit fullscreen</li>
         <li><kbd>?</kbd> Show/Hide this help</li>
         <li><kbd>A</kbd> Toggle mono audio</li>
         <li><kbd>R</kbd> Toggle random mode</li>
@@ -468,6 +470,17 @@ export class VideoPlayer {
       }
     });
 
+    this.rootElement.addEventListener("dblclick", (event) => {
+      if (this.isControlsElement(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      this.clearPendingVideoClick();
+      void this.toggleFullscreen();
+    });
+
     // Mouse wheel for volume control
     this.rootElement.addEventListener("wheel", (event) => {
       event.preventDefault();
@@ -485,13 +498,21 @@ export class VideoPlayer {
       }
     });
 
-    this.videoElement.addEventListener("click", () => {
+    this.videoElement.addEventListener("click", (event) => {
       if (this.retryPlaybackIfBlocked()) {
         return;
       }
 
-      this.recoverAudioOutput();
-      this.playPause();
+      this.clearPendingVideoClick();
+      if (event.detail > 1) {
+        return;
+      }
+
+      this.videoClickTimer = setTimeout(() => {
+        this.videoClickTimer = undefined;
+        this.recoverAudioOutput();
+        this.playPause();
+      }, 300);
     });
 
     this.videoElement.addEventListener("timeupdate", throttle(() => this.persistState(), 5000));
@@ -541,7 +562,13 @@ export class VideoPlayer {
       const isLargeSeekModifierPressed = event.ctrlKey || (isMacOS && (event.metaKey || event.altKey));
       const invertedMode = this.random ? "sequential" : "random";
       let handled = true;
-      if (event.key === "Home") {
+      if (event.key === "Escape") {
+        if (document.fullscreenElement) {
+          void this.exitFullscreen();
+        } else {
+          handled = false;
+        }
+      } else if (event.key === "Home") {
         this.videoElement.currentTime = 0;
       } else if (event.key === "End") {
         nextTrack(event);
@@ -625,6 +652,40 @@ export class VideoPlayer {
         event.stopPropagation();
       }
     });
+  }
+
+  private isControlsElement(target: EventTarget | null) {
+    return target instanceof HTMLElement && target.closest(".controls") !== null;
+  }
+
+  private clearPendingVideoClick() {
+    if (this.videoClickTimer !== undefined) {
+      clearTimeout(this.videoClickTimer);
+      this.videoClickTimer = undefined;
+    }
+  }
+
+  private async toggleFullscreen() {
+    if (document.fullscreenElement) {
+      await this.exitFullscreen();
+      return;
+    }
+
+    try {
+      await this.rootElement.requestFullscreen();
+      this.displayCursor();
+    } catch (error) {
+      console.error("Failed to enter fullscreen:", error);
+    }
+  }
+
+  private async exitFullscreen() {
+    try {
+      await document.exitFullscreen();
+      this.displayCursor();
+    } catch (error) {
+      console.error("Failed to exit fullscreen:", error);
+    }
   }
 
   private registerDragAndDropEvents() {
