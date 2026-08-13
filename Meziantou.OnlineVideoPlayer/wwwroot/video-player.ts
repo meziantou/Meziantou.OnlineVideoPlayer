@@ -4,6 +4,10 @@ interface FileDetails {
   size: number;
 }
 
+interface RenameFileResponse {
+  path: string;
+}
+
 interface RemotePlaylistItem {
   type: "remote";
   path: string;
@@ -400,6 +404,7 @@ export class VideoPlayer {
         <li><kbd>0</kbd>-<kbd>9</kbd> Jump to 0%-90%</li>
         <li><kbd>ArrowUp</kbd> / <kbd>ArrowDown</kbd> Volume +5% / -5%</li>
         <li><kbd>Delete</kbd> / <kbd>Backspace</kbd> Delete current file</li>
+        <li><kbd>F2</kbd> Rename current file</li>
         <li><kbd>T</kbd> / <kbd>B</kbd> Open tracks page</li>
       </ul>`;
   }
@@ -635,6 +640,8 @@ export class VideoPlayer {
             void this.deleteTrack(currentTrackPath);
           }
         }
+      } else if (event.key === "F2") {
+        this.promptRenameCurrentTrack();
       } else if (event.key === "t") {
         document.location.href = "/tracks";
       } else if (event.key === "b") {
@@ -849,6 +856,84 @@ export class VideoPlayer {
       console.error("Failed to delete track:", error);
       await this.handleDeleteFailure(trackPath);
     }
+  }
+
+  private promptRenameCurrentTrack() {
+    if (!this.currentTrackPath) {
+      this.showStatusIndicator("Rename is only available for playlist files");
+      return;
+    }
+
+    const currentTrackPath = this.currentTrackPath;
+    const currentFileName = getFileName(currentTrackPath);
+    const newFileName = prompt("Rename file", currentFileName);
+    if (newFileName === null || newFileName === currentFileName) {
+      return;
+    }
+
+    void this.renameTrack(currentTrackPath, newFileName);
+  }
+
+  private async renameTrack(trackPath: string, newName: string) {
+    try {
+      const response = await fetch("/files/" + encodeURIComponent(trackPath), {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ newName }),
+      });
+
+      if (response.ok) {
+        const result: RenameFileResponse = await response.json();
+        this.updateRenamedTrack(trackPath, result.path);
+        this.showStatusIndicator("Renamed");
+        return;
+      }
+
+      alert("Failed to rename " + trackPath + ": " + await getResponseMessage(response));
+    } catch (error) {
+      console.error("Failed to rename track:", error);
+      alert("Failed to rename " + trackPath);
+    }
+  }
+
+  private updateRenamedTrack(oldPath: string, newPath: string) {
+    for (const track of this.playlist) {
+      if (track.type === "remote" && track.path === oldPath) {
+        track.path = newPath;
+      }
+    }
+
+    if (this.currentTrackPath !== oldPath) {
+      return;
+    }
+
+    this.currentTrackPath = newPath;
+    this.currentTrackName = newPath;
+    this.updateTrackNameDisplay();
+    this.updateDocumentTitle();
+    void this.updateFileDetails(newPath);
+    this.reloadCurrentRemoteTrack(newPath);
+    this.persistState();
+  }
+
+  private reloadCurrentRemoteTrack(trackPath: string) {
+    const currentTime = this.videoElement.currentTime;
+    const wasPlaying = !this.videoElement.paused && !this.videoElement.ended;
+
+    this.videoElement.addEventListener("loadedmetadata", () => {
+      if (Number.isFinite(currentTime) && currentTime > 0 && currentTime < this.videoElement.duration) {
+        this.videoElement.currentTime = currentTime;
+      }
+
+      if (wasPlaying) {
+        this.startPlayback(false);
+      }
+    }, { once: true });
+
+    this.videoElement.src = "files/" + encodeURIComponent(trackPath);
+    this.videoElement.load();
   }
 
   private async handleDeleteFailure(trackPath: string) {
@@ -1123,6 +1208,26 @@ function formatFileSize(bytes: number) {
 
   const value = Math.round(bytes * 10) / 10;
   return `${value}${units[unitIndex]}`;
+}
+
+function getFileName(path: string) {
+  return path.split(/[\\/]/).pop() || path;
+}
+
+async function getResponseMessage(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/problem+json") || contentType.includes("application/json")) {
+    const details = await response.json();
+    if (details && typeof details.detail === "string") {
+      return details.detail;
+    }
+
+    if (details && typeof details.title === "string") {
+      return details.title;
+    }
+  }
+
+  return await response.text();
 }
 
 function throttle(mainFunction: Function, delay: number) {

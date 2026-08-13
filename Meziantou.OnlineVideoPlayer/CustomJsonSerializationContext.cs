@@ -6,5 +6,7 @@ namespace Meziantou.OnlineVideoPlayer;
 [JsonSerializable(typeof(IEnumerable<string>))]
 [JsonSerializable(typeof(FileDetails))]
 [JsonSerializable(typeof(List<string>))]
+[JsonSerializable(typeof(RenameFileRequest))]
+[JsonSerializable(typeof(RenameFileResponse))]
 [JsonSerializable(typeof(string))]
 internal sealed partial class CustomJsonSerializationContext : JsonSerializerContext;

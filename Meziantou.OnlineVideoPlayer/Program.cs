@@ -66,7 +66,52 @@ app.MapDelete("files/{**path}", (HttpContext context, ILogger<Program> logger, s
     }
 });
 
+app.MapPatch("files/{**path}", (ILogger<Program> logger, string path, RenameFileRequest request, IOptions<PlayerConfiguration> options) =>
+{
+    if (!IsValidFileName(request.NewName))
+        return Results.BadRequest("Invalid file name");
+
+    var fullPath = GetFullPath(path, options, writeAccess: true);
+    var currentFileName = Path.GetFileName(fullPath);
+    if (request.NewName == currentFileName)
+    {
+        var currentPath = GetShortPath(fullPath, options.Value.RootFolderReadWrite, options.Value);
+        return Results.Json(new RenameFileResponse(currentPath), CustomJsonSerializationContext.Default.RenameFileResponse);
+    }
+
+    var destinationPath = Path.Combine(Path.GetDirectoryName(fullPath) ?? "", request.NewName);
+    if (File.Exists(destinationPath))
+        return Results.Conflict("A file with the same name already exists");
+
+    try
+    {
+        File.Move(fullPath, destinationPath);
+        var renamedPath = GetShortPath(destinationPath, options.Value.RootFolderReadWrite, options.Value);
+        return Results.Json(new RenameFileResponse(renamedPath), CustomJsonSerializationContext.Default.RenameFileResponse);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to rename file: {Path}", fullPath);
+        return Results.Problem(ex.Message);
+    }
+});
+
 await app.RunAsync();
+
+static bool IsValidFileName(string value)
+{
+    return !string.IsNullOrWhiteSpace(value)
+        && value == Path.GetFileName(value)
+        && value.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
+        && !value.Contains('/', StringComparison.Ordinal)
+        && !value.Contains('\\', StringComparison.Ordinal);
+}
+
+static string GetShortPath(string fullPath, string root, PlayerConfiguration configuration)
+{
+    var relativePath = Path.GetRelativePath(root, fullPath).Replace('\\', '/');
+    return configuration.GetShortPath(relativePath);
+}
 
 static string GetFullPath(string path, IOptions<PlayerConfiguration> options, bool writeAccess)
 {
