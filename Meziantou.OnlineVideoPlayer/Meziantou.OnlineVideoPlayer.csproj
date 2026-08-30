@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Meziantou.Framework.FullPath" Version="3.0.2" />
+    <PackageReference Include="Meziantou.Framework.FullPath" Version="3.0.3" />
   </ItemGroup>
   
   <Target Name="CompileTypeScript" BeforeTargets="BeforeBuild">
