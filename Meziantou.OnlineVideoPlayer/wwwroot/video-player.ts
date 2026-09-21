@@ -21,6 +21,13 @@ interface LocalPlaylistItem {
 
 type PlaylistItem = RemotePlaylistItem | LocalPlaylistItem;
 
+const PLAYABLE_FILE_EXTENSIONS = new Set([
+  ".mp4", ".m4v", ".mov", ".webm", ".mkv", ".avi", ".flv", ".f4v", ".wmv", ".asf", ".mpg", ".mpeg", ".mpe", ".m2v",
+  ".mts", ".m2ts", ".ts", ".ogv", ".ogm", ".3gp", ".3g2", ".divx", ".rm", ".rmvb", ".vob", ".mxf", ".mp3", ".m4a",
+  ".m4b", ".aac", ".flac", ".ogg", ".oga", ".opus", ".wav", ".wma", ".aiff", ".aif", ".alac", ".ape", ".mka", ".mid",
+  ".midi", ".amr", ".dsf"
+]);
+
 export class VideoPlayer {
   private rootElement: HTMLElement;
   private videoElement: HTMLVideoElement;
@@ -746,23 +753,19 @@ export class VideoPlayer {
   }
 
   private isPlayableFile(file: File): boolean {
-    if (file.type) {
-      return this.videoElement.canPlayType(file.type) !== "";
+    const fileName = file.name.toLowerCase();
+    const dotIndex = fileName.lastIndexOf(".");
+    if (dotIndex >= 0 && PLAYABLE_FILE_EXTENSIONS.has(fileName.substring(dotIndex))) {
+      return true;
     }
 
-    const fileName = file.name.toLowerCase();
-    return fileName.endsWith(".mp4")
-      || fileName.endsWith(".webm")
-      || fileName.endsWith(".mkv")
-      || fileName.endsWith(".m4v")
-      || fileName.endsWith(".mov")
-      || fileName.endsWith(".avi")
-      || fileName.endsWith(".mp3")
-      || fileName.endsWith(".m4a")
-      || fileName.endsWith(".aac")
-      || fileName.endsWith(".flac")
-      || fileName.endsWith(".ogg")
-      || fileName.endsWith(".wav");
+    if (file.type) {
+      return this.videoElement.canPlayType(file.type) !== ""
+        || file.type.startsWith("video/")
+        || file.type.startsWith("audio/");
+    }
+
+    return false;
   }
 
   private switchToLocalPlaylist(files: File[]) {

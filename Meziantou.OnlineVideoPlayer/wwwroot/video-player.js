@@ -1,4 +1,11 @@
 import * as playerState from "./state.js";
+const PLAYABLE_FILE_EXTENSIONS = new Set([
+  ".mp4", ".m4v", ".mov", ".webm", ".mkv", ".avi", ".flv", ".f4v", ".wmv", ".asf", ".mpg", ".mpeg", ".mpe", ".m2v",
+  ".mts", ".m2ts", ".ts", ".ogv", ".ogm", ".3gp", ".3g2", ".divx", ".rm", ".rmvb", ".vob", ".mxf", ".mp3", ".m4a",
+  ".m4b", ".aac", ".flac", ".ogg", ".oga", ".opus", ".wav", ".wma", ".aiff", ".aif", ".alac", ".ape", ".mka", ".mid",
+  ".midi", ".amr", ".dsf"
+]);
+
 export class VideoPlayer {
     rootElement;
     videoElement;
@@ -670,22 +677,17 @@ export class VideoPlayer {
         return files.filter(file => this.isPlayableFile(file));
     }
     isPlayableFile(file) {
-        if (file.type) {
-            return this.videoElement.canPlayType(file.type) !== "";
-        }
         const fileName = file.name.toLowerCase();
-        return fileName.endsWith(".mp4")
-            || fileName.endsWith(".webm")
-            || fileName.endsWith(".mkv")
-            || fileName.endsWith(".m4v")
-            || fileName.endsWith(".mov")
-            || fileName.endsWith(".avi")
-            || fileName.endsWith(".mp3")
-            || fileName.endsWith(".m4a")
-            || fileName.endsWith(".aac")
-            || fileName.endsWith(".flac")
-            || fileName.endsWith(".ogg")
-            || fileName.endsWith(".wav");
+        const dotIndex = fileName.lastIndexOf(".");
+        if (dotIndex >= 0 && PLAYABLE_FILE_EXTENSIONS.has(fileName.substring(dotIndex))) {
+            return true;
+        }
+        if (file.type) {
+            return this.videoElement.canPlayType(file.type) !== ""
+                || file.type.startsWith("video/")
+                || file.type.startsWith("audio/");
+        }
+        return false;
     }
     switchToLocalPlaylist(files) {
         this.revokeLocalObjectUrls();
